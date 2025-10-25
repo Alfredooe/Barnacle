@@ -1,0 +1,20 @@
+services:
+  barnacle:
+    image: barnacle:latest
+    container_name: barnacle
+    restart: unless-stopped
+    environment:
+      - REPO_URL=git@github.com:Alfredooe/docker.alfredo.cc.git
+      - DEPLOY_KEY_PATH=/ssh/deploy_key # Internal, don't change pls.
+      - BRANCH=main
+      - DISCORD_WEBHOOK=
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ~/.ssh/deploy_key_2:/ssh/deploy_key:ro
+      - /opt:/opt
+    networks:
+      - barnacle_network
+
+networks:
+  barnacle_network:
+    name: barnacle_network
