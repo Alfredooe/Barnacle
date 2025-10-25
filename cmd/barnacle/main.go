@@ -111,7 +111,7 @@ func main() {
 			sendUpdateDetectedWebhook(config.DiscordWebhook, changedFiles)
 
 			deploymentResults := make(map[string]error)
-			if err := deployChangedStacksWithResults(config.RepoPath, changedFiles, state, deploymentResults); err != nil {
+			if err := deployChanges(config.RepoPath, changedFiles, state, deploymentResults); err != nil {
 				log.Printf("Error deploying stacks: %v", err)
 			}
 
@@ -365,102 +365,13 @@ func deployAllStacks(repoPath string, state *State) error {
 		log.Printf("Successfully deployed stack: %s", stackName)
 	}
 
-	cleanupDeletedStacks(repoPath, state.DeployedStacks, currentStacks)
-
-	state.DeployedStacks = currentStacks
-	if err := saveState(state); err != nil {
-		log.Printf("Warning: Failed to save state: %v", err)
-	}
-
-	log.Printf("Deployment complete: %d stack(s) deployed", deployedCount)
-	return nil
-}
-
-func deployChangedStacks(repoPath string, changedFiles []string, state *State) error {
-	if changedFiles == nil {
-		return deployAllStacks(repoPath, state)
-	}
-
-	log.Printf("Changed files: %v", changedFiles)
-	for i, file := range changedFiles {
-		log.Printf("  [%d] '%s' (length: %d)", i, file, len(file))
-	}
-
-	entries, err := os.ReadDir(repoPath)
-	if err != nil {
-		return fmt.Errorf("failed to read repo directory: %w", err)
-	}
-
-	currentStacks := make(map[string]bool)
-	for _, entry := range entries {
-		if !entry.IsDir() || entry.Name()[0] == '.' {
-			continue
-		}
-
-		stackName := entry.Name()
-		stackPath := filepath.Join(repoPath, stackName)
-
-		if _, err := os.Stat(filepath.Join(stackPath, "ignore")); err == nil {
-			continue
-		}
-
-		if !hasComposeFile(stackPath) {
-			continue
-		}
-
-		currentStacks[stackName] = true
-	}
-
-	log.Printf("Current stacks on disk: %v", mapKeys(currentStacks))
-
-	affectedStacks := make(map[string]bool)
-	for _, file := range changedFiles {
-		parts := strings.Split(file, "/")
-		log.Printf("  File '%s' split into %d parts: %v", file, len(parts), parts)
-
-		if len(parts) > 1 && parts[0] != "" && parts[0][0] != '.' {
-			stackName := parts[0]
-			if currentStacks[stackName] {
-				affectedStacks[stackName] = true
-				log.Printf("    ✓ File '%s' affects stack: %s", file, stackName)
-			} else {
-				log.Printf("    ✗ Stack '%s' doesn't exist (not a valid stack folder)", stackName)
-			}
-		} else {
-			log.Printf("    ✗ Skipping root-level file or invalid path")
-		}
-	}
-
-	for stackName := range currentStacks {
-		if !state.DeployedStacks[stackName] {
-			affectedStacks[stackName] = true
-			log.Printf("New stack detected: %s", stackName)
-		}
-	}
-
+	deletedStacks := []string{}
 	for stackName := range state.DeployedStacks {
 		if !currentStacks[stackName] {
-			log.Printf("Deleted stack detected: %s", stackName)
+			deletedStacks = append(deletedStacks, stackName)
 		}
 	}
-
-	log.Printf("Affected stacks: %v", mapKeys(affectedStacks))
-
-	deployedCount := 0
-	for stackName := range affectedStacks {
-		stackPath := filepath.Join(repoPath, stackName)
-
-		log.Printf("Deploying stack: %s", stackName)
-		if err := dockerComposeUp(stackPath); err != nil {
-			log.Printf("Failed to deploy stack %s: %v", stackName, err)
-			continue
-		}
-
-		deployedCount++
-		log.Printf("Successfully deployed stack: %s", stackName)
-	}
-
-	cleanupDeletedStacks(repoPath, state.DeployedStacks, currentStacks)
+	cleanupDeletedStacks(repoPath, deletedStacks, make(map[string]error))
 
 	state.DeployedStacks = currentStacks
 	if err := saveState(state); err != nil {
@@ -471,20 +382,6 @@ func deployChangedStacks(repoPath string, changedFiles []string, state *State) e
 	return nil
 }
 
-func cleanupDeletedStacks(repoPath string, oldStacks, currentStacks map[string]bool) {
-	for stackName := range oldStacks {
-		if !currentStacks[stackName] {
-			log.Printf("Stack %s was deleted, running docker compose down...", stackName)
-			stackPath := filepath.Join(repoPath, stackName)
-
-			if err := dockerComposeDown(stackPath, stackName); err != nil {
-				log.Printf("Warning: Failed to stop deleted stack %s: %v", stackName, err)
-			} else {
-				log.Printf("Successfully stopped deleted stack: %s", stackName)
-			}
-		}
-	}
-}
 
 func hasComposeFile(stackPath string) bool {
 	for _, filename := range []string{"docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"} {
@@ -532,19 +429,34 @@ func mapKeys(m map[string]bool) []string {
 	return keys
 }
 
-func deployChangedStacksWithResults(repoPath string, changedFiles []string, state *State, results map[string]error) error {
+func deployChanges(repoPath string, changedFiles []string, state *State, results map[string]error) error {
 	if changedFiles == nil {
 		return deployAllStacks(repoPath, state)
 	}
 
-	log.Printf("Changed files: %v", changedFiles)
-	for i, file := range changedFiles {
-		log.Printf("  [%d] '%s' (length: %d)", i, file, len(file))
+	currentStacks, err := getCurrentStacks(repoPath)
+	if err != nil {
+		return err
 	}
 
+	affectedStacks, deletedStacks := getAffectedStacks(changedFiles, currentStacks, state.DeployedStacks)
+
+	deployStacks(repoPath, affectedStacks, results)
+	cleanupDeletedStacks(repoPath, deletedStacks, results)
+
+	state.DeployedStacks = currentStacks
+	if err := saveState(state); err != nil {
+		log.Printf("Warning: Failed to save state: %v", err)
+	}
+
+	log.Printf("Deployment complete: %d stack(s) deployed", len(affectedStacks))
+	return nil
+}
+
+func getCurrentStacks(repoPath string) (map[string]bool, error) {
 	entries, err := os.ReadDir(repoPath)
 	if err != nil {
-		return fmt.Errorf("failed to read repo directory: %w", err)
+		return nil, fmt.Errorf("failed to read repo directory: %w", err)
 	}
 
 	currentStacks := make(map[string]bool)
@@ -568,34 +480,41 @@ func deployChangedStacksWithResults(repoPath string, changedFiles []string, stat
 	}
 
 	log.Printf("Current stacks on disk: %v", mapKeys(currentStacks))
+	return currentStacks, nil
+}
 
+func getAffectedStacks(changedFiles []string, currentStacks, deployedStacks map[string]bool) (map[string]bool, []string) {
 	affectedStacks := make(map[string]bool)
 	for _, file := range changedFiles {
 		parts := strings.Split(file, "/")
-		log.Printf("  File '%s' split into %d parts: %v", file, len(parts), parts)
-
-		if len(parts) > 1 && parts[0] != "" && parts[0][0] != '.' {
+		if len(parts) > 0 {
 			stackName := parts[0]
+			if stackName == ".." {
+				log.Printf("    ✗ Skipping potentially malicious path: %s", file)
+				continue
+			}
+			if stackName == "." {
+				if len(parts) > 1 {
+					stackName = parts[1]
+				} else {
+					continue
+				}
+			}
 			if currentStacks[stackName] {
 				affectedStacks[stackName] = true
-				log.Printf("    ✓ File '%s' affects stack: %s", file, stackName)
-			} else {
-				log.Printf("    ✗ Stack '%s' doesn't exist (not a valid stack folder)", stackName)
 			}
-		} else {
-			log.Printf("    ✗ Skipping root-level file or invalid path")
 		}
 	}
 
 	for stackName := range currentStacks {
-		if !state.DeployedStacks[stackName] {
+		if !deployedStacks[stackName] {
 			affectedStacks[stackName] = true
 			log.Printf("New stack detected: %s", stackName)
 		}
 	}
 
 	deletedStacks := []string{}
-	for stackName := range state.DeployedStacks {
+	for stackName := range deployedStacks {
 		if !currentStacks[stackName] {
 			log.Printf("Deleted stack detected: %s", stackName)
 			deletedStacks = append(deletedStacks, stackName)
@@ -603,8 +522,10 @@ func deployChangedStacksWithResults(repoPath string, changedFiles []string, stat
 	}
 
 	log.Printf("Affected stacks: %v", mapKeys(affectedStacks))
+	return affectedStacks, deletedStacks
+}
 
-	deployedCount := 0
+func deployStacks(repoPath string, affectedStacks map[string]bool, results map[string]error) {
 	for stackName := range affectedStacks {
 		stackPath := filepath.Join(repoPath, stackName)
 
@@ -615,11 +536,12 @@ func deployChangedStacksWithResults(repoPath string, changedFiles []string, stat
 			continue
 		}
 
-		deployedCount++
 		results[stackName] = nil
 		log.Printf("Successfully deployed stack: %s", stackName)
 	}
+}
 
+func cleanupDeletedStacks(repoPath string, deletedStacks []string, results map[string]error) {
 	for _, stackName := range deletedStacks {
 		stackPath := filepath.Join(repoPath, stackName)
 		log.Printf("Stack %s was deleted, running docker compose down...", stackName)
@@ -632,14 +554,6 @@ func deployChangedStacksWithResults(repoPath string, changedFiles []string, stat
 			results[stackName+" (deleted)"] = nil
 		}
 	}
-
-	state.DeployedStacks = currentStacks
-	if err := saveState(state); err != nil {
-		log.Printf("Warning: Failed to save state: %v", err)
-	}
-
-	log.Printf("Deployment complete: %d stack(s) deployed", deployedCount)
-	return nil
 }
 
 func sendUpdateDetectedWebhook(webhookURL string, changedFiles []string) {
