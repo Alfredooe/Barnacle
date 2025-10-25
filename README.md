@@ -14,14 +14,9 @@ I got annoyed with having to use Portainer / Komodo for this. Simple Golang tool
 
 ### 1. Deploy Key Setup
 
-Generate an SSH key pair:
+Generate an SSH key pair and add this to your repo
 ```bash
-ssh-keygen -t ed25519 -C "barnacle-deploy-key" -f deploy_key
-```
-
-Add the deploy key pub (`deploy_key.pub`) to your git repo
-```bash
-chmod 600 deploy_key
+ssh-keygen -t ed25519 -C "deploy-key" -f deploy_key
 ```
 
 ### 2. Configure docker-compose.yml
