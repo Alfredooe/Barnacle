@@ -1,14 +1,15 @@
-# Barnacle
+<img width="2048" height="512" alt="image" src="https://github.com/user-attachments/assets/6fac9ffc-3928-4f78-9b46-1fb9eea3bfc1" />
 
-I got annoyed with having to use Portainer / Komodo for this. Simple Golang tool built into a container that polls a git repo and deploys docker compose stacks found in subfolders. A bit like Flux for compose stacks. Small and primitive, hence why it's called Barnacle.
+I got annoyed with having to use Portainer / Komodo for continuously deploying docker compose stacks from Github. Barnacle is a simple Golang tool built deployed as a container that polls a git repo and deploys docker compose stacks found in subfolders. It's a bit like Flux for Kube, but simpler and sticks onto a docker host to deploy your stacks. Hence, Barnacle. 
 
 ## Features
 
+- Minimal and understandable
 - Polls a git repo using a deploy key every 30s
 - Clones repo to `/opt/reponame`
-- Detects compose stack changes and ups or deletes these
-- Can ignore stacks with an `ignore` file
-- Discord / Slack webhooks
+- Detects compose stack changes then runs a compose up / down to deploy the changed stack.
+- Stacks can be ignored using a `ignore` file to not operate on them.
+- Can webhook updates and deployment status to Slack and Discord.
 
 ## Quick Start
 
@@ -39,11 +40,11 @@ volumes:
 
 ### 3. Run with Docker Compose
 
-Docker compose up it.
+Run the project with docker compose. This can be from your stacks repo, but I'd recommend adding an ignore flag on Barnacle itself.
 
 ## Repository Structure
 
-Repo should be structured like this. Add an ignore file to ignore a stack.
+Your repo should be structured like this. Add an ignore file to ignore a stack.
 
 ```
 your-repo/
@@ -56,11 +57,11 @@ your-repo/
     └── compose.yml
 ```
 
-## Sec Notes
+## Security Notes
 
 - Container needs access to the hosts docker socket to manage containers.
 - Container needs a mount to /opt to store the repo
 
 ## Logging
 
-This exists, not much to say about it. 
+This exists, It's a little bit verbose and needs improving. 
