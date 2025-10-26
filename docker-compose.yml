@@ -5,7 +5,6 @@ services:
     restart: unless-stopped
     environment:
       - REPO_URL=git@github.com:user/repo.git
-      - DEPLOY_KEY_PATH=/ssh/deploy_key # Internal, don't change pls.
       - BRANCH=main
       - DISCORD_WEBHOOK=
     volumes:
