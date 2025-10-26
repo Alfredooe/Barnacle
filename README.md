@@ -1,15 +1,44 @@
 <img width="2048" height="512" alt="image" src="https://github.com/user-attachments/assets/6fac9ffc-3928-4f78-9b46-1fb9eea3bfc1" />
 
+## Introduction
+
 I got annoyed with having to use Portainer / Komodo for continuously deploying docker compose stacks from Github. Barnacle is a simple Golang tool built deployed as a container that polls a git repo and deploys docker compose stacks found in subfolders. It's a bit like Flux for Kube, but simpler and sticks onto a docker host to deploy your stacks. Hence, Barnacle. 
+
 
 ## Features
 
-- Minimal and understandable
-- Polls a git repo using a deploy key every 30s
-- Clones repo to `/opt/reponame`
+- Minimal and understandable code, About 400 LOC aside from webhooks.
+- Polls a git repo using a deploy key at a configurable duration
 - Detects compose stack changes then runs a compose up / down to deploy the changed stack.
+- Clones your repo / stacks to `/opt/reponame`
 - Stacks can be ignored using a `ignore` file to not operate on them.
 - Can webhook updates and deployment status to Slack and Discord.
+
+## Operation
+
+<img align="right" width="286" height="355" alt="image" src="https://github.com/user-attachments/assets/e477cb23-f02b-4830-969e-217a9c383a20" />
+
+
+```
+2025/10/26 00:08:14 Updated from bc646f6 to c52fc93
+2025/10/26 00:08:14 Repository updated, deploying changed stacks...
+2025/10/26 00:08:15 Discord webhook sent successfully
+2025/10/26 00:08:15 Current stacks on disk: [traefik whoami dockge]
+2025/10/26 00:08:15 New stack detected: whoami
+2025/10/26 00:08:15 Affected stacks: [whoami]
+2025/10/26 00:08:15 Deploying stack: whoami
+ Network whoami_default  Creating
+ Network whoami_default  Created
+ Container whoami-whoami-1  Creating
+ Container whoami-whoami-1  Created
+ Container whoami-whoami-1  Starting
+ Container whoami-whoami-1  Started
+2025/10/26 00:08:15 Successfully deployed stack: whoami
+2025/10/26 00:08:15 Deployment complete: 1 stack(s) deployed
+2025/10/26 00:08:16 Discord webhook sent successfull
+```
+
+
 
 ## Quick Start
 
