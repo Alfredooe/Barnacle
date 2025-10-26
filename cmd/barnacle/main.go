@@ -18,14 +18,14 @@ import (
 )
 
 const (
-	pollInterval = 30 * time.Second
-	stateFile    = "/app/barnacle-state.json"
+	pollInterval      = 30 * time.Second
+	stateFile         = "/app/barnacle-state.json"
+	deployKeyPath     = "/ssh/deploy_key"
 )
 
 type Config struct {
 	RepoURL        string
 	RepoPath       string
-	DeployKeyPath  string
 	Branch         string
 	DiscordWebhook string
 }
@@ -134,13 +134,8 @@ func loadConfig() Config {
 	config := Config{
 		RepoURL:        repoURL,
 		RepoPath:       repoPath,
-		DeployKeyPath:  getEnv("DEPLOY_KEY_PATH", ""),
 		Branch:         getEnv("BRANCH", "main"),
 		DiscordWebhook: getEnv("DISCORD_WEBHOOK", ""),
-	}
-
-	if config.DeployKeyPath == "" {
-		log.Fatal("DEPLOY_KEY_PATH environment variable is required")
 	}
 
 	return config
@@ -207,7 +202,7 @@ func initializeRepo(config Config) (*git.Repository, error) {
 	}
 
 	log.Println("Cloning repository...")
-	auth, err := getSSHAuth(config.DeployKeyPath)
+	auth, err := getSSHAuth(deployKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup SSH auth: %w", err)
 	}
@@ -241,7 +236,7 @@ func pullRepo(repo *git.Repository, config Config) (bool, []string, error) {
 		return false, nil, fmt.Errorf("failed to get HEAD: %w", err)
 	}
 
-	auth, err := getSSHAuth(config.DeployKeyPath)
+	auth, err := getSSHAuth(deployKeyPath)
 	if err != nil {
 		return false, nil, fmt.Errorf("failed to setup SSH auth: %w", err)
 	}
