@@ -38,8 +38,6 @@ I got annoyed with having to use Portainer / Komodo for continuously deploying d
 2025/10/26 00:08:16 Discord webhook sent successfull
 ```
 
-
-
 ## Quick Start
 
 ### 1. Deploy Key Setup
@@ -85,12 +83,3 @@ your-repo/
 └── stack3/
     └── compose.yml
 ```
-
-## Security Notes
-
-- Container needs access to the hosts docker socket to manage containers.
-- Container needs a mount to /opt to store the repo
-
-## Logging
-
-This exists, It's a little bit verbose and needs improving. 
