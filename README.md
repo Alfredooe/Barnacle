@@ -69,7 +69,6 @@ Edit the `docker-compose.yml` file
 ```yaml
 environment:
   - REPO_URL=git@github.com:youruser/yourrepo.git  # Your repo
-  - DEPLOY_KEY_PATH=/ssh/deploy_key # This is internal to the container, Update the volume mount not this
   - BRANCH=main  # Desired branch
   - DISCORD_WEBHOOK=https://discord.com/api/webhooks/YOUR_WEBHOOK_URL  # Optional
 ```
