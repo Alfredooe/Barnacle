@@ -40,14 +40,29 @@ I got annoyed with having to use Portainer / Komodo for continuously deploying d
 
 ## Quick Start
 
-### 1. Deploy Key Setup
+### 1. Repository Structure
+
+Your repo should be structured like this. It probably already is. Add an ignore file to ignore a stack.
+
+```
+your-repo/
+├── stack1/
+│   └── docker-compose.yml
+├── stack2/
+│   ├── docker-compose.yml
+│   └── ignore                    # This stack will be skipped
+└── stack3/
+    └── compose.yml
+```
+
+### 2. Deploy Key Setup
 
 Generate an SSH key pair and add this to your repo
 ```bash
 ssh-keygen -t ed25519 -C "deploy-key" -f deploy_key
 ```
 
-### 2. Configure docker-compose.yml
+### 3. Configure docker-compose.yml
 
 Edit the `docker-compose.yml` file
 
@@ -65,21 +80,8 @@ volumes:
   - ./deploy_key:/ssh/deploy_key:ro  # Path to your deploy key
 ```
 
-### 3. Run with Docker Compose
+### 4. Run with Docker Compose
 
-Run the project with docker compose. This can be from your stacks repo, but I'd recommend adding an ignore flag on Barnacle itself.
+Run the project with `docker compose up -d`. This can be from your stacks repo, but I'd recommend adding an ignore flag on Barnacle itself.
 
-## Repository Structure
 
-Your repo should be structured like this. Add an ignore file to ignore a stack.
-
-```
-your-repo/
-├── stack1/
-│   └── docker-compose.yml
-├── stack2/
-│   ├── docker-compose.yml
-│   └── ignore                    # This stack will be skipped
-└── stack3/
-    └── compose.yml
-```
