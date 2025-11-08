@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	pollInterval      = 30 * time.Second
-	stateFile         = "/app/barnacle-state.json"
-	deployKeyPath     = "/ssh/deploy_key"
+	pollInterval  = 30 * time.Second
+	stateFile     = "/app/barnacle-state.json"
+	deployKeyPath = "/ssh/deploy_key"
 )
 
 type Config struct {
@@ -250,17 +250,18 @@ func pullRepo(repo *git.Repository, config Config) (bool, []string, error) {
 		if err == git.NoErrAlreadyUpToDate {
 			return false, nil, nil
 		}
-		return false, nil, fmt.Errorf("failed to pull: %w", err)
-	}
 
-	if strings.Contains(err.Error(), "worktree contains unstaged changes") {
-		status, statusErr := w.Status()
-		if statusErr == nil && !status.IsClean() {
-			log.Println("Unstaged changes detected:")
-			for file, fileStatus := range status {
-				log.Printf("  %s: Worktree=%v Staging=%v", file, fileStatus.Worktree, fileStatus.Staging)
+		if strings.Contains(err.Error(), "worktree contains unstaged changes") {
+			status, statusErr := w.Status()
+			if statusErr == nil && !status.IsClean() {
+				log.Println("Unstaged changes detected:")
+				for file, fileStatus := range status {
+					log.Printf("  %s: Worktree=%v Staging=%v", file, fileStatus.Worktree, fileStatus.Staging)
+				}
 			}
 		}
+
+		return false, nil, fmt.Errorf("failed to pull: %w", err)
 	}
 
 	headAfter, err := repo.Head()
@@ -386,7 +387,6 @@ func deployAllStacks(repoPath string, state *State) error {
 	log.Printf("Deployment complete: %d stack(s) deployed", deployedCount)
 	return nil
 }
-
 
 func hasComposeFile(stackPath string) bool {
 	for _, filename := range []string{"docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"} {
