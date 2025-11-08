@@ -253,6 +253,16 @@ func pullRepo(repo *git.Repository, config Config) (bool, []string, error) {
 		return false, nil, fmt.Errorf("failed to pull: %w", err)
 	}
 
+	if strings.Contains(err.Error(), "worktree contains unstaged changes") {
+		status, statusErr := w.Status()
+		if statusErr == nil && !status.IsClean() {
+			log.Println("Unstaged changes detected:")
+			for file, fileStatus := range status {
+				log.Printf("  %s: Worktree=%v Staging=%v", file, fileStatus.Worktree, fileStatus.Staging)
+			}
+		}
+	}
+
 	headAfter, err := repo.Head()
 	if err != nil {
 		return false, nil, fmt.Errorf("failed to get HEAD after pull: %w", err)
