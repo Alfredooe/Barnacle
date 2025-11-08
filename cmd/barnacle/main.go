@@ -236,6 +236,13 @@ func pullRepo(repo *git.Repository, config Config) (bool, []string, error) {
 		return false, nil, fmt.Errorf("failed to get HEAD: %w", err)
 	}
 
+	err = w.Reset(&git.ResetOptions{
+		Mode: git.HardReset,
+	})
+	if err != nil {
+		return false, nil, fmt.Errorf("failed to reset worktree: %w", err)
+	}
+
 	auth, err := getSSHAuth(deployKeyPath)
 	if err != nil {
 		return false, nil, fmt.Errorf("failed to setup SSH auth: %w", err)
@@ -250,17 +257,6 @@ func pullRepo(repo *git.Repository, config Config) (bool, []string, error) {
 		if err == git.NoErrAlreadyUpToDate {
 			return false, nil, nil
 		}
-
-		if strings.Contains(err.Error(), "worktree contains unstaged changes") {
-			status, statusErr := w.Status()
-			if statusErr == nil && !status.IsClean() {
-				log.Println("Unstaged changes detected:")
-				for file, fileStatus := range status {
-					log.Printf("  %s: Worktree=%v Staging=%v", file, fileStatus.Worktree, fileStatus.Staging)
-				}
-			}
-		}
-
 		return false, nil, fmt.Errorf("failed to pull: %w", err)
 	}
 
