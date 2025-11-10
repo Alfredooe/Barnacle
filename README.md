@@ -42,7 +42,9 @@ I got annoyed with having to use Portainer / Komodo for continuously deploying d
 
 ### 1. Repository Structure
 
-Your repo should be structured like this. It probably already is. Add an ignore file to ignore a stack. Add .gitignore for your docker created config files, This hard pulls to avoid local untracked change issues.
+Your repo should be structured like this. It probably already is. Add an ignore file to ignore a stack.
+
+As this hard pulls to avoid untracked changes / desync, I'd recommend using volumes or .gitignoring local config in repository structure.
 
 ```
 your-repo/
