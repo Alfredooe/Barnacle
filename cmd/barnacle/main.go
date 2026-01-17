@@ -25,9 +25,14 @@ const (
 
 type Config struct {
 	RepoURL        string
+	HostPath       string
 	RepoPath       string
 	Branch         string
 	DiscordWebhook string
+}
+
+func (c Config) stacksPath() string {
+	return filepath.Join(c.HostPath, c.RepoPath)
 }
 
 type State struct {
@@ -59,7 +64,10 @@ func main() {
 
 	log.Printf("Starting barnacle...")
 	log.Printf("Repository: %s", config.RepoURL)
-	log.Printf("Local path: %s", config.RepoPath)
+	log.Printf("Clone path: %s", config.HostPath)
+	if config.RepoPath != "" {
+		log.Printf("Stacks path: %s", config.stacksPath())
+	}
 	log.Printf("Poll interval: %v", pollInterval)
 
 	state := loadState()
@@ -70,7 +78,7 @@ func main() {
 	}
 
 	if repo != nil {
-		if err := deployAllStacks(config.RepoPath, state); err != nil {
+		if err := deployAllStacks(config.stacksPath(), state); err != nil {
 			log.Printf("Warning: Initial deployment failed: %v", err)
 		}
 	} else {
@@ -93,7 +101,7 @@ func main() {
 				continue
 			}
 			log.Println("Repository now has content, performing initial deployment...")
-			if err := deployAllStacks(config.RepoPath, state); err != nil {
+			if err := deployAllStacks(config.stacksPath(), state); err != nil {
 				log.Printf("Error deploying stacks: %v", err)
 			}
 			continue
@@ -111,7 +119,7 @@ func main() {
 			sendUpdateDetectedWebhook(config.DiscordWebhook, changedFiles)
 
 			deploymentResults := make(map[string]error)
-			if err := deployChanges(config.RepoPath, changedFiles, state, deploymentResults); err != nil {
+			if err := deployChanges(config, changedFiles, state, deploymentResults); err != nil {
 				log.Printf("Error deploying stacks: %v", err)
 			}
 
@@ -129,10 +137,12 @@ func loadConfig() Config {
 	}
 
 	repoName := extractRepoName(repoURL)
-	repoPath := getEnv("REPO_PATH", fmt.Sprintf("/opt/%s", repoName))
+	hostPath := getEnv("HOST_PATH", fmt.Sprintf("/opt/%s", repoName))
+	repoPath := strings.Trim(getEnv("REPO_PATH", ""), "/")
 
 	config := Config{
 		RepoURL:        repoURL,
+		HostPath:       hostPath,
 		RepoPath:       repoPath,
 		Branch:         getEnv("BRANCH", "main"),
 		DiscordWebhook: getEnv("DISCORD_WEBHOOK", ""),
@@ -195,7 +205,7 @@ func saveState(state *State) error {
 }
 
 func initializeRepo(config Config) (*git.Repository, error) {
-	repo, err := git.PlainOpen(config.RepoPath)
+	repo, err := git.PlainOpen(config.HostPath)
 	if err == nil {
 		log.Println("Repository already exists, using existing clone")
 		return repo, nil
@@ -207,7 +217,7 @@ func initializeRepo(config Config) (*git.Repository, error) {
 		return nil, fmt.Errorf("failed to setup SSH auth: %w", err)
 	}
 
-	repo, err = git.PlainClone(config.RepoPath, false, &git.CloneOptions{
+	repo, err = git.PlainClone(config.HostPath, false, &git.CloneOptions{
 		URL:           config.RepoURL,
 		Auth:          auth,
 		ReferenceName: plumbing.NewBranchReferenceName(config.Branch),
@@ -430,20 +440,21 @@ func mapKeys(m map[string]bool) []string {
 	return keys
 }
 
-func deployChanges(repoPath string, changedFiles []string, state *State, results map[string]error) error {
+func deployChanges(config Config, changedFiles []string, state *State, results map[string]error) error {
+	stacksPath := config.stacksPath()
 	if changedFiles == nil {
-		return deployAllStacks(repoPath, state)
+		return deployAllStacks(stacksPath, state)
 	}
 
-	currentStacks, err := getCurrentStacks(repoPath)
+	currentStacks, err := getCurrentStacks(stacksPath)
 	if err != nil {
 		return err
 	}
 
-	affectedStacks, deletedStacks := getAffectedStacks(changedFiles, currentStacks, state.DeployedStacks)
+	affectedStacks, deletedStacks := getAffectedStacks(changedFiles, currentStacks, state.DeployedStacks, config.RepoPath)
 
-	deployStacks(repoPath, affectedStacks, results)
-	cleanupDeletedStacks(repoPath, deletedStacks, results)
+	deployStacks(stacksPath, affectedStacks, results)
+	cleanupDeletedStacks(stacksPath, deletedStacks, results)
 
 	state.DeployedStacks = currentStacks
 	if err := saveState(state); err != nil {
@@ -484,9 +495,23 @@ func getCurrentStacks(repoPath string) (map[string]bool, error) {
 	return currentStacks, nil
 }
 
-func getAffectedStacks(changedFiles []string, currentStacks, deployedStacks map[string]bool) (map[string]bool, []string) {
+func getAffectedStacks(changedFiles []string, currentStacks, deployedStacks map[string]bool, repoPath string) (map[string]bool, []string) {
 	affectedStacks := make(map[string]bool)
+	repoPathPrefix := repoPath
+	if repoPathPrefix != "" {
+		repoPathPrefix = repoPathPrefix + "/"
+	}
+
 	for _, file := range changedFiles {
+		// If repoPath is set, only consider files within that path
+		if repoPathPrefix != "" {
+			if !strings.HasPrefix(file, repoPathPrefix) {
+				continue
+			}
+			// Strip the repoPath prefix
+			file = strings.TrimPrefix(file, repoPathPrefix)
+		}
+
 		parts := strings.Split(file, "/")
 		if len(parts) > 0 {
 			stackName := parts[0]
